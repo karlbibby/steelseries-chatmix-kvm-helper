@@ -34,7 +34,11 @@ Sending the two ChatMix-enable reports through the successful method restored di
 
 **What this establishes:** the control-report method can communicate with the base station through this KVM, while the normal write method fails on this setup.
 
-**What it does not establish:** the exact cause inside the KVM, hub, host USB controller, or Windows driver. GG's own API calls were not instrumented, and no USB packet capture was taken. The direct and KVM paths used different controller topologies. Full reboot/sign-in and physical KVM-switch recovery have not yet been verified. Other headsets and KVMs are untested.
+**What it does not establish:** the exact cause inside the KVM, hub, host USB controller, or Windows driver. GG's own API calls were not instrumented, and no USB packet capture was taken. The direct and KVM paths used different controller topologies. Physical KVM-switch recovery is not yet verified. Other headsets and KVMs are untested.
+
+### Startup correction
+
+The initial version failed after reboot with Windows error 740 because it launched `SteelSeriesGGEZ.exe` using direct process creation. GGEZ's manifest requests `uiAccess="true"`; Windows' shell launch is required on the tested installation. The helper now uses `os.startfile` (ShellExecute), the installed host's working directory, and its background startup arguments. The helper itself stays unelevated. No scheduled task or custom elevation mechanism is installed. The corrected installed startup command was tested with all GG processes stopped: it started GGEZ, GG, Engine and Sonar, and successfully submitted both ChatMix commands. A subsequent complete Windows sign-in test is still outstanding.
 
 ## What the helper does
 
@@ -137,6 +141,7 @@ Keep `startup-backup.json` until restoration is complete. Restoring startup does
 - **Access/error/timeout:** inspect the local log, compare direct USB, and check that the KVM is selected to this PC.
 - **Still no balance change:** GG/Sonar must be running, and game/chat audio must be routed to the appropriate Sonar channels.
 - **After a GG update:** verify startup is still as intended; the GG installer may recreate its own startup entry.
+- **Old version fails at sign-in with error 740:** replace the installed `gg_chatmix_helper.py` with the current version while the helper is stopped. The corrected shell-launch path avoids the original direct-process-creation error. If Windows still refuses the shell launch, the watcher logs it and waits up to one minute for GG to be started manually.
 - **Blank Engine settings or failed firmware reads:** these are not repaired by the helper. Connect directly for configuration and firmware updates.
 
 Individual probe subprocesses are limited to ten seconds by the watcher. The standalone diagnostic probe has bounded overlapped I/O waits, but a malfunctioning driver may delay cancellation; run invasive diagnostics separately from normal operation.

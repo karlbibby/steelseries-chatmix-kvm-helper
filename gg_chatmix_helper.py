@@ -73,6 +73,24 @@ def apply():
     logging.info('ChatMix enable %s: %s', 'submitted' if success else 'FAILED', commands)
     return success
 
+def launch_gg(startup=False):
+    """ShellExecute honors GGEZ's signed uiAccess manifest, unlike CreateProcess."""
+    if startup and gg_processes():
+        return True
+    data_path = Path(os.environ.get('ProgramData', r'C:\ProgramData')) / 'SteelSeries/GG'
+    arguments = [f'-dataPath={data_path}', '-dbEnv=production']
+    if startup:
+        arguments.append('-auto=true')
+    try:
+        os.startfile(str(GG_HOST), 'open', subprocess.list2cmdline(arguments),
+                     str(GG.parent), 0 if startup else 1)
+        return True
+    except OSError as error:
+        if startup and getattr(error, 'winerror', None) == 740:
+            logging.warning('Windows refused the GG shell launch (740); waiting for GG to be started manually.')
+            return False
+        raise
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--once', action='store_true', help='Apply once without opening GG')
@@ -88,15 +106,7 @@ def main():
         return 0 if apply() else 1
     if not GG.is_file():
         raise FileNotFoundError(GG)
-    # Preserve GG's original host/auto startup mode at Windows login.
-    if args.startup:
-        if not gg_processes():
-            data_path = Path(os.environ.get('ProgramData', r'C:\ProgramData')) / 'SteelSeries/GG'
-            subprocess.Popen([str(GG_HOST), f'-dataPath={data_path}',
-                              '-dbEnv=production', '-auto=true'],
-                             creationflags=subprocess.CREATE_NO_WINDOW)
-    else:
-        subprocess.Popen([str(GG)], creationflags=subprocess.CREATE_NO_WINDOW)
+    launch_gg(startup=args.startup)
     mutex = K.CreateMutexW(None, False, 'Local\\NovaProKvmChatMixHelper')
     already_running = C.get_last_error() == 183
     if not mutex:
